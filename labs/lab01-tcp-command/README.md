@@ -173,14 +173,46 @@ npm run test:watch
 7. Once the tests pass, test manually with the client.
 8. Update this README to describe the final protocol.
 
+## Final Protocol Description
+
+The TCP Command Server accepts one command per line from a connected client. Commands are case-insensitive, while command arguments are processed as normal text.
+
+### Supported Commands
+
+| Command | Example         | Response                             |
+| ------- | --------------- | ------------------------------------ |
+| ECHO    | `ECHO hello`    | `hello`                              |
+| UPPER   | `UPPER hello`   | `HELLO`                              |
+| LOWER   | `LOWER HELLO`   | `hello`                              |
+| REVERSE | `REVERSE hello` | `olleh`                              |
+| TIME    | `TIME`          | Current server date and time         |
+| QUIT    | `QUIT`          | `Goodbye.` and closes the connection |
+
+### Error Handling
+
+| Input           | Response                             |
+| --------------- | ------------------------------------ |
+| Empty line      | `ERROR empty command`                |
+| Unknown command | `ERROR unknown command: commandName` |
+
+The server processes one command at a time and remains active until the client disconnects or sends the `QUIT` command.
+
 ## Reflection Questions
 
 Answer the following questions in your submission:
 
 1. What is the difference between the client and the server?
+
+My answer: As per the lecture, the client requests a service whereas a server provides a service. A client initiates communication, sends requests, and displays or consumes results. A server waits for requests, applies logic, accesses resources, and sends responses. 
+
 2. Why does the server need to keep running after handling one request?
+My answer: Servers must keep running in order to anticipate new requests from new clients, and handle further requests from existing clients. It does not make sense for a server to stop after a single request because it would have to be restarted after each request, which is costly and impractical.
+
 3. What happens if two clients connect at the same time?
+My answer: A server can create two different sockets for each client so that they don't interfere with one another.
+
 4. How is this different from HTTP?
+My answer: This assignment uses a TCP protocol, where commands are sent directly over a socket. HTTP is built on TCP but has a higher-level protocol.
 
 ## Submission
 
