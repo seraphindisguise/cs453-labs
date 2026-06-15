@@ -206,12 +206,15 @@ Answer the following questions in your submission:
 My answer: As per the lecture, the client requests a service whereas a server provides a service. A client initiates communication, sends requests, and displays or consumes results. A server waits for requests, applies logic, accesses resources, and sends responses. 
 
 2. Why does the server need to keep running after handling one request?
+
 My answer: Servers must keep running in order to anticipate new requests from new clients, and handle further requests from existing clients. It does not make sense for a server to stop after a single request because it would have to be restarted after each request, which is costly and impractical.
 
 3. What happens if two clients connect at the same time?
+
 My answer: A server can create two different sockets for each client so that they don't interfere with one another.
 
 4. How is this different from HTTP?
+
 My answer: This assignment uses a TCP protocol, where commands are sent directly over a socket. HTTP is built on TCP but has a higher-level protocol.
 
 ## Submission
