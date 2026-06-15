@@ -1,4 +1,5 @@
 import http from "node:http";
+import { pathToFileURL } from "node:url";
 
 const DEFAULT_PORT = 3000;
 
@@ -161,7 +162,7 @@ export function resetState() {
     requestCount = 0;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     const port = process.env.PORT || DEFAULT_PORT;
     const server = createServer();
 
