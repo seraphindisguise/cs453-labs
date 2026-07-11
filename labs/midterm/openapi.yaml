@@ -1,0 +1,252 @@
+openapi: 3.0.3
+
+info:
+  title: Course Task Tracker API
+  version: 1.0.0
+  description: >
+    A REST-style API for managing an in-memory collection of course tasks.
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+paths:
+  /health:
+    get:
+      summary: Check server health
+      responses:
+        "200":
+          description: The server is running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/tasks:
+    get:
+      summary: Return all tasks
+      responses:
+        "200":
+          description: A list of all tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    post:
+      summary: Create a new task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskInput"
+      responses:
+        "201":
+          description: The task was created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/tasks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/TaskId"
+
+    get:
+      summary: Return one task by ID
+      responses:
+        "200":
+          description: The requested task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    put:
+      summary: Replace an existing task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskInput"
+      responses:
+        "200":
+          description: The task was replaced successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    patch:
+      summary: Partially update an existing task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskPatch"
+      responses:
+        "200":
+          description: The task was updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      summary: Delete an existing task
+      responses:
+        "204":
+          description: The task was deleted successfully
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  parameters:
+    TaskId:
+      name: id
+      in: path
+      required: true
+      description: The numeric ID of the task
+      schema:
+        type: integer
+        minimum: 1
+        example: 1
+
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          example: ok
+
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - course
+        - completed
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: Watch Week 3 lecture
+        course:
+          type: string
+          example: CS453
+        completed:
+          type: boolean
+          example: false
+
+    TaskInput:
+      type: object
+      required:
+        - title
+        - course
+        - completed
+      properties:
+        title:
+          type: string
+          minLength: 1
+          example: Study for the midterm
+        course:
+          type: string
+          minLength: 1
+          example: CS453
+        completed:
+          type: boolean
+          example: false
+
+    TaskPatch:
+      type: object
+      description: >
+        A partial task update. At least one of title, course, or completed
+        should be included.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          example: Finish studying for the midterm
+        course:
+          type: string
+          minLength: 1
+          example: CS453
+        completed:
+          type: boolean
+          example: true
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          example: Task not found
+
+  responses:
+    BadRequest:
+      description: The request contains invalid JSON or invalid task data
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            invalidTask:
+              value:
+                error: Invalid task data
+            invalidJson:
+              value:
+                error: Invalid JSON
+
+    NotFound:
+      description: The requested task or route could not be found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: Task not found
+
+    InternalServerError:
+      description: An unexpected server error occurred
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error: Internal server error
