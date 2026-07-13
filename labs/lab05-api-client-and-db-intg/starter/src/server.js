@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import pg from "pg";
+import { pathToFileURL } from "node:url";
 
 const { Pool } = pg;
 
@@ -13,6 +14,27 @@ const pool = new Pool({
   user: process.env.PGUSER ?? "postgres",
   password: process.env.PGPASSWORD ?? "postgres"
 });
+
+function parseItemId(value) {
+  const id = Number(value);
+
+  if (!Number.isInteger(id) || id <= 0) {
+    return null;
+  }
+
+  return id;
+}
+
+function validateCompleteItem(body) {
+  const name = body?.name?.trim();
+  const quantity = Number(body?.quantity);
+
+  if (!name || !Number.isInteger(quantity) || quantity < 0) {
+    return null;
+  }
+
+  return { name, quantity };
+}
 
 export function createApp() {
   const app = express();
@@ -39,7 +61,7 @@ export function createApp() {
     }
   });
 
-  // Starter route: return every item from the database.
+  // Return all items.
   app.get("/api/items", async (req, res) => {
     try {
       const result = await pool.query(`
@@ -58,12 +80,11 @@ export function createApp() {
     }
   });
 
-  // Starter route: create one item so the client can demonstrate a write.
+  // Create one item.
   app.post("/api/items", async (req, res) => {
-    const name = req.body?.name?.trim();
-    const quantity = Number(req.body?.quantity);
+    const item = validateCompleteItem(req.body);
 
-    if (!name || !Number.isInteger(quantity) || quantity < 0) {
+    if (!item) {
       return res.status(400).json({
         error: "Bad Request",
         message: "A name and non-negative integer quantity are required."
@@ -77,7 +98,7 @@ export function createApp() {
           VALUES ($1, $2)
           RETURNING id, name, quantity
         `,
-        [name, quantity]
+        [item.name, item.quantity]
       );
 
       res.status(201).json({ item: result.rows[0] });
@@ -90,28 +111,221 @@ export function createApp() {
     }
   });
 
-  // TODO: Return one item by ID.
-  app.get("/api/items/:id", (req, res) => {
-    res.status(501).json({ error: "Not implemented yet" });
+  // Return one item by ID.
+  app.get("/api/items/:id", async (req, res) => {
+    const id = parseItemId(req.params.id);
+
+    if (id === null) {
+      return res.status(400).json({
+        error: "Bad Request",
+        message: "Item ID must be a positive integer."
+      });
+    }
+
+    try {
+      const result = await pool.query(
+        `
+          SELECT id, name, quantity
+          FROM items
+          WHERE id = $1
+        `,
+        [id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          error: "Not Found",
+          message: "Item not found."
+        });
+      }
+
+      res.json({ item: result.rows[0] });
+    } catch (error) {
+      console.error("Failed to load item:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: "Failed to load item."
+      });
+    }
   });
 
-  // TODO: Replace one item by ID.
-  app.put("/api/items/:id", (req, res) => {
-    res.status(501).json({ error: "Not implemented yet" });
+  // Fully replace one item.
+  app.put("/api/items/:id", async (req, res) => {
+    const id = parseItemId(req.params.id);
+    const item = validateCompleteItem(req.body);
+
+    if (id === null) {
+      return res.status(400).json({
+        error: "Bad Request",
+        message: "Item ID must be a positive integer."
+      });
+    }
+
+    if (!item) {
+      return res.status(400).json({
+        error: "Bad Request",
+        message: "A name and non-negative integer quantity are required."
+      });
+    }
+
+    try {
+      const result = await pool.query(
+        `
+          UPDATE items
+          SET name = $1, quantity = $2
+          WHERE id = $3
+          RETURNING id, name, quantity
+        `,
+        [item.name, item.quantity, id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          error: "Not Found",
+          message: "Item not found."
+        });
+      }
+
+      res.json({ item: result.rows[0] });
+    } catch (error) {
+      console.error("Failed to replace item:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: "Failed to replace item."
+      });
+    }
   });
 
-  // TODO: Partially update one item by ID.
-  app.patch("/api/items/:id", (req, res) => {
-    res.status(501).json({ error: "Not implemented yet" });
+  // Partially update one item.
+  app.patch("/api/items/:id", async (req, res) => {
+    const id = parseItemId(req.params.id);
+
+    if (id === null) {
+      return res.status(400).json({
+        error: "Bad Request",
+        message: "Item ID must be a positive integer."
+      });
+    }
+
+    const hasName = Object.hasOwn(req.body ?? {}, "name");
+    const hasQuantity = Object.hasOwn(req.body ?? {}, "quantity");
+
+    if (!hasName && !hasQuantity) {
+      return res.status(400).json({
+        error: "Bad Request",
+        message: "Provide a name, quantity, or both."
+      });
+    }
+
+    let name;
+    let quantity;
+
+    if (hasName) {
+      name = req.body.name?.trim();
+
+      if (!name) {
+        return res.status(400).json({
+          error: "Bad Request",
+          message: "Name must be a non-empty string."
+        });
+      }
+    }
+
+    if (hasQuantity) {
+      quantity = Number(req.body.quantity);
+
+      if (!Number.isInteger(quantity) || quantity < 0) {
+        return res.status(400).json({
+          error: "Bad Request",
+          message: "Quantity must be a non-negative integer."
+        });
+      }
+    }
+
+    try {
+      const existing = await pool.query(
+        `
+          SELECT id, name, quantity
+          FROM items
+          WHERE id = $1
+        `,
+        [id]
+      );
+
+      if (existing.rows.length === 0) {
+        return res.status(404).json({
+          error: "Not Found",
+          message: "Item not found."
+        });
+      }
+
+      const currentItem = existing.rows[0];
+      const updatedName = hasName ? name : currentItem.name;
+      const updatedQuantity = hasQuantity ? quantity : currentItem.quantity;
+
+      const result = await pool.query(
+        `
+          UPDATE items
+          SET name = $1, quantity = $2
+          WHERE id = $3
+          RETURNING id, name, quantity
+        `,
+        [updatedName, updatedQuantity, id]
+      );
+
+      res.json({ item: result.rows[0] });
+    } catch (error) {
+      console.error("Failed to update item:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: "Failed to update item."
+      });
+    }
   });
 
-  // TODO: Delete one item by ID.
-  app.delete("/api/items/:id", (req, res) => {
-    res.status(501).json({ error: "Not implemented yet" });
+  // Delete one item.
+  app.delete("/api/items/:id", async (req, res) => {
+    const id = parseItemId(req.params.id);
+
+    if (id === null) {
+      return res.status(400).json({
+        error: "Bad Request",
+        message: "Item ID must be a positive integer."
+      });
+    }
+
+    try {
+      const result = await pool.query(
+        `
+          DELETE FROM items
+          WHERE id = $1
+          RETURNING id
+        `,
+        [id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          error: "Not Found",
+          message: "Item not found."
+        });
+      }
+
+      res.status(204).send();
+    } catch (error) {
+      console.error("Failed to delete item:", error);
+      res.status(500).json({
+        error: "Internal Server Error",
+        message: "Failed to delete item."
+      });
+    }
   });
 
   app.use((req, res) => {
-    res.status(404).json({ error: "Not found" });
+    res.status(404).json({
+      error: "Not Found",
+      message: "Route not found."
+    });
   });
 
   return app;
@@ -126,7 +340,9 @@ export async function initializeDatabase() {
     )
   `);
 
-  const { rows } = await pool.query("SELECT COUNT(*)::int AS count FROM items");
+  const { rows } = await pool.query(
+    "SELECT COUNT(*)::int AS count FROM items"
+  );
 
   if (rows[0].count === 0) {
     await pool.query(
@@ -139,7 +355,8 @@ export async function initializeDatabase() {
   }
 }
 
-const isMainModule = process.argv[1] === new URL(import.meta.url).pathname;
+const isMainModule =
+  import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMainModule) {
   const app = createApp();
